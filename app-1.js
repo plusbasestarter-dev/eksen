@@ -1,0 +1,31 @@
+function inflateEksenCourses(rows){
+  let uid=0,tid=0;
+  const courses=rows.map((c,ci)=>{
+    const courseId=(c.n||`course-${ci}`).toLocaleLowerCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ı/g,'i').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    const units=c.u.map((u,ui)=>{
+      const unitId=`${courseId}.u${String(ui+1).padStart(2,'0')}`;
+      const topics=u[5].map((t,ti)=>({
+        title:t[0],engine:t[1]||u[1],grade:t[2]||u[2],tags:t[3]||[],
+        id:`${unitId}.t${String(ti+1).padStart(2,'0')}`,course:c.n,courseId,
+        unit:u[0],unitId,exam:u[3],testGroup:c.g,framework:u[4]
+      }));
+      return {title:u[0],engine:u[1],grade:u[2],exam:u[3],framework:u[4],topics,id:unitId};
+    });
+    return {name:c.n,short:c.s,icon:c.i,accent:c.a,testGroup:c.g,order:c.o,units,id:courseId};
+  });
+  return {version:"3.0.0",courses,topicCount:courses.reduce((n,c)=>n+c.units.reduce((m,u)=>m+u.topics.length,0),0),unitCount:courses.reduce((n,c)=>n+c.units.length,0)};
+}
+const DATA=inflateEksenCourses(window.EKSEN_COURSES||[]);
+const ENGINE_FAMILY={"turkish_context":"text","turkish_inference":"text","turkish_evidence":"text","turkish_tokens":"tokens","math_numberline":"math","math_power":"math","math_balance":"math","math_model":"math","math_logic":"logic","math_graph":"graph","math_probability":"probability","math_data":"data","math_polynomial":"graph","math_parabola":"graph","math_complex":"complex","math_trig":"trig","math_log":"graph","math_sequence":"sequence","math_limit":"limit","math_derivative":"derivative","math_integral":"integral","geometry_triangle":"geometry","geometry_polygon":"geometry","geometry_circle":"geometry","geometry_solid":"solid","geometry_analytic":"geometry","physics_measure":"physics","physics_matter":"physics","physics_motion":"motion","physics_energy":"energy","physics_thermal":"thermal","physics_pressure":"pressure","physics_circuit":"circuit","physics_wave":"wave","physics_optics":"optics","physics_vector":"vector","physics_momentum":"momentum","physics_electricfield":"electric","physics_magnetism":"magnetism","physics_circular":"circular","physics_modern":"modern","chem_lab":"chem","chem_atom":"atom","chem_bond":"bond","chem_particles":"particles","chem_stoich":"stoich","chem_solution":"solution","chem_acidbase":"acidbase","chem_context":"chem","chem_orbital":"atom","chem_gas":"gas","chem_enthalpy":"enthalpy","chem_kinetics":"kinetics","chem_equilibrium":"equilibrium","chem_solubility":"solution","chem_electro":"electro","chem_organic":"organic","bio_system":"bio","bio_biomolecule":"molecule","bio_cell":"cell","bio_tree":"tree","bio_division":"division","bio_genetics":"genetics","bio_ecology":"ecology","bio_neuron":"neuron","bio_reproduction":"reproduction","bio_energy":"bioenergy","bio_plant":"plant","history_timeline":"timeline","history_map":"timeline","history_empire":"timeline","history_change":"timeline","history_revolution":"timeline","history_republic":"timeline","history_modern":"timeline","geo_system":"geo","geo_map":"map","geo_climate":"climate","geo_landform":"landform","geo_biome":"biome","geo_population":"population","geo_economy":"economy","geo_turkey":"map","geo_environment":"environment","geo_geopolitics":"map","phil_argument":"argument","literature_map":"literature","literature_timeline":"literature","literature_network":"literature","psych_brain":"brain","psych_cognition":"brain","psych_personality":"network","psych_social":"network","socio_network":"network","socio_structure":"network","socio_change":"network","logic_blocks":"logic","logic_truth":"logic","logic_flow":"logic","logic_circuit":"logic","religion_context":"context","religion_text":"text","religion_compare":"network","lang_vocab":"language","lang_grammar":"language","lang_cloze":"cloze","lang_sentence":"language","lang_translation":"translation","lang_reading":"text","lang_dialogue":"dialogue","lang_restate":"language"};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const state={screen:'catalog',exam:'Tümü',courseId:null,unitId:null,topicId:null,step:0,openUnits:new Set(),progress:JSON.parse(localStorage.getItem('eksen3-progress')||'{}')};
+function save(){localStorage.setItem('eksen3-progress',JSON.stringify(state.progress))}
+function allTopics(){return DATA.courses.flatMap(c=>c.units.flatMap(u=>u.topics))}
+function courseById(id){return DATA.courses.find(c=>c.id===id)}
+function unitById(c,id){return c?.units.find(u=>u.id===id)}
+function topicById(id){for(const c of DATA.courses)for(const u of c.units){let t=u.topics.find(x=>x.id===id);if(t)return t}}
+function showScreen(name){state.screen=name;$$('.app-screen').forEach(s=>s.classList.toggle('active',s.dataset.screen===name));$$('.bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.nav===name||(name==='catalog'&&b.dataset.nav==='catalog')));if(name==='map')renderMap()}
+function examClass(c){let g=c.testGroup;return g.startsWith('TYT')?'TYT':g.startsWith('AYT')?'AYT':'YDT'}
+function renderExamTabs(){let tabs=['Tümü','TYT','AYT','YDT'];$('#examTabs').innerHTML=tabs.map(x=>`<button class="${state.exam===x?'active':''}" data-exam="${x}">${x}</button>`).join('');$$('[data-exam]').forEach(b=>b.onclick=()=>{state.exam=b.dataset.exam;renderCatalog()})}
+function renderCatalog(){renderExamTabs();let q=$('#searchInput').value.trim().toLocaleLowerCase('tr');let courses=DATA.courses.filter(c=>state.exam==='Tümü'||examClass(c)===state.exam);if(q)courses=courses.filter(c=>[c.name,c.testGroup,...c.units.map(u=>u.title),...c.units.flatMap(u=>u.topics.map(t=>t.title))].join(' ').toLocaleLowerCase('tr').includes(q));$('#topicCount').textContent=courses.reduce((n,c)=>n+c.units.reduce((a,u)=>a+u.topics.length,0),0);$('#courseGrid').innerHTML=courses.map(c=>`<article class="course-card" data-course="${c.id}" style="--accent:${c.accent}"><div class="course-icon">${c.icon}</div><small>${c.testGroup}</small><h3>${c.name}</h3><div class="course-meta"><b>${c.units.length}</b> ünite · <b>${c.units.reduce((a,u)=>a+u.topics.length,0)}</b> konu</div></article>`).join('');$$('[data-course]').forEach(x=>x.onclick=()=>openCourse(x.dataset.course))}
+function openCourse(id){state.courseId=id;state.openUnits=new Set();renderCourse();showScreen('course')}

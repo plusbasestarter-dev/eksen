@@ -1,0 +1,9 @@
+{
+  "name": "EKSEN 3.0 — YKS Curriculum OS",
+  "short_name": "EKSEN",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#06101a",
+  "theme_color": "#06101a",
+  "icons": []
+}
